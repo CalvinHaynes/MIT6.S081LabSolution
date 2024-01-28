@@ -104,8 +104,11 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
+extern uint64 sys_trace(void);
+extern uint64 sys_sysinfo(void);
 
-static uint64 (*syscalls[])(void) = {
+//系统调用号和实际系统调用函数的映射数组
+static uint64 (*syscalls[])(void) = {   
 [SYS_fork]    sys_fork,
 [SYS_exit]    sys_exit,
 [SYS_wait]    sys_wait,
@@ -127,6 +130,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_trace]   sys_trace,
+[SYS_sysinfo] sys_sysinfo
 };
 
 void
@@ -134,11 +139,19 @@ syscall(void)
 {
   int num;
   struct proc *p = myproc();
+  char *syscallName[] = {"fork","exit","wait","pipe","read","kill","exec","fstat","chdir","dup","getpid","sbrk","sleep","uptime","open","write","mknod","unlink","link","mkdir","close","trace", "sysinfo"};
 
-  num = p->trapframe->a7;
+  //目前的问题是什么？问题是需要检测到trace系统调用之后，然后再打印
+  num = p->trapframe->a7;   //从当前进程的trapframe中的a7中拿到syscall number
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    p->trapframe->a0 = syscalls[num]();
+    // Use num to lookup the system call function for num, call it,
+    // and store its return value in p->trapframe->a0
+    p->trapframe->a0 = syscalls[num](); //实际执行的syscall的函数的返回值存到当前进程的trapframe的a0中
+    if((1 << num) & p->syscallMask)     //类似嵌入式系统利用寄存器的每一位表示配置
+      //syscallName下标从0开始，syscall number从1开始(进程号 -> syscall名称 -> syscall返回值)
+      printf("%d: syscall %s -> %d\n",p->pid,syscallName[num-1],p->trapframe->a0);  
   } else {
+    //If the systemcall number is invalid, syscall prints an error and returns -1.
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
     p->trapframe->a0 = -1;

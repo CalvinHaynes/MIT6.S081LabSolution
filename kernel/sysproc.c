@@ -1,3 +1,7 @@
+//
+//Process-related system calls
+//
+
 #include "types.h"
 #include "riscv.h"
 #include "defs.h"
@@ -6,6 +10,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -94,4 +99,39 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_trace(void)
+{
+  //读取user-space中trace调用中的mask参数，并将其存入当前进程的proc结构体中
+  int n;
+  if(argint(0, &n) < 0){
+    return -1;
+  }
+  myproc()->syscallMask = n;
+  
+  return 0;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  uint64 u; // user pointer to struct sysinfo
+  struct sysinfo s; // kernal计算sysinfo的临时变量, 利用copyout将这个再传递回user层
+  struct proc *p = myproc();
+
+  //取user层函数sysinfo的参数(sysinfo结构体指针)赋给p
+  if(argaddr(0, &u) < 0)
+    return -1;
+
+  //统计计算sysinfo
+  s.freemem = kfreemem_getamount();
+  s.nproc = proc_gettotalnum();
+
+  //sysinfo needs to copy a struct sysinfo back to user space
+  if(copyout(p->pagetable, u, (char *)&s, sizeof(s)) < 0)
+    return -1;
+  
+  return 0;
 }

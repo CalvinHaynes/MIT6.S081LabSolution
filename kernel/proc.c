@@ -259,8 +259,8 @@ int
 fork(void)
 {
   int i, pid;
-  struct proc *np;
-  struct proc *p = myproc();
+  struct proc *np;            //当前进程fork出来的子进程
+  struct proc *p = myproc();  //当前进程
 
   // Allocate process.
   if((np = allocproc()) == 0){
@@ -282,6 +282,10 @@ fork(void)
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+
+  // copy the trace mask from the parent to the child process.
+  // 传递trace系统调用的参数(mask掩码)给fork的子进程
+  np->syscallMask = p->syscallMask;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -692,4 +696,18 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+//collect the number of processes(系统中活跃的进程个数-->状态不是UNUSED的进程)
+uint64
+proc_gettotalnum(void) 
+{
+  uint64 total = 0;
+  int nproc = sizeof(proc) / sizeof(proc[0]);  // 计算proc数组中的元素个数
+  for(int i = 0; i < nproc; i++) {
+    if (proc[i].state != UNUSED) {
+      total++;
+    }
+  }
+  return total;
 }
