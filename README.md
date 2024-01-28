@@ -1,16 +1,16 @@
-# MIT6.S081-2020-labs
+# MIT6.S081-LabSolution
 
-MIT6.S081实验官方纯净源代码，转载于MIT官方仓库git clone git://g.csail.mit.edu/xv6-labs-2020，由于GitHub上没有放出2020版本的MIT6.S081的实验源代码仓库，故在此转载一下，方便大家Fork，也方便我自己使用
+## 前言
 
-## 分支说明
+本仓库主要旨在于整理`MIT6.S081 2020`秋季网课的实验源代码, `Docker`环境搭建方案, 授课视频或`xv6book`中出现的`exercise`,以及我的实验解决笔记和代码.
+后续也会努力持续跟进这个OS课的实验的新设计(目前官网已经更改课名为MIT6.1810)
 
-- `main`分支：
-  
-  - 我搭建的一个Docker环境，集成了code-server（网页端Vscode），以达到开箱即用的效果，通过`Docker`的`Volumes`机制可通过`Docker`访问宿主机的文件，并可以修改和执行（相当于将宿主机的文件挂载在Docker的虚拟环境中），具体搭建&使用流程点[这里](https://zhuanlan.zhihu.com/p/449687883)，效果图如下：
-  
-  ![image](https://xf233.oss-cn-hangzhou.aliyuncs.com/CalvinHaynesBlogImage/image.5l840ak5vw00.png)
-  
-  - 一些学习笔记
-  - 一些操作系统的资料
+## Docker环境搭建方案
 
-- 其他分支：根据官方的项目一个个`clone`过来的，因为mit-pdos的github组织没有开源这个实验的环境，所以我建立这个github仓库方便大家直接fork成自己的项目并且通过github跟踪自己的实验过程，鼓励大家开源自己的学习成果，共同进步，共同学习！！！加油！！！
+为了有最纯净做实验的感觉,我制作了一个`Docker`的镜像,直接`pull`下来简单配置一下,就可以实现在网页版的`Vscode`上做这个实验(该镜像我依旧还会优化其使用体验,敬请期待),具体效果如下:
+
+![image](https://xf233.oss-cn-hangzhou.aliyuncs.com/CalvinHaynesBlogImage/image.5l840ak5vw00.png)
+
+关于我是如何搭建的以及windows/linux操作系统下如何使用我的镜像,我写了一篇知乎文章,大家可以来看看:[一个玩转国外CSLab的通用环境搭建方案（附我的搭建好的MIT6.S081环境）](https://zhuanlan.zhihu.com/p/449687883)
+
+`Dockerfile`也在`main`分支中,感兴趣的小伙伴可以自行查看
