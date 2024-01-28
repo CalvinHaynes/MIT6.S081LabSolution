@@ -21,9 +21,10 @@ extern char trampoline[]; // trampoline.S
 void
 kvminit()
 {
-  kernel_pagetable = (pagetable_t) kalloc();
-  memset(kernel_pagetable, 0, PGSIZE);
+  kernel_pagetable = (pagetable_t) kalloc();  //为第一级页表分配内存
+  memset(kernel_pagetable, 0, PGSIZE);        //初始化第一级页表为0
 
+  //利用kvmmap函数将每一个IO设备映射到内核虚拟地址空间(虚拟地址和物理地址完全相同的一一对应)，对应着xv6内核虚拟地址和物理地址映射的图
   // uart registers
   kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
 
@@ -52,10 +53,11 @@ kvminit()
 void
 kvminithart()
 {
-  w_satp(MAKE_SATP(kernel_pagetable));
-  sfence_vma();
+  w_satp(MAKE_SATP(kernel_pagetable));  //将kernel pagetable地址加载到SATP寄存器，从此之后虚拟内存地址正式被使用了
+  sfence_vma();                         //清空TLB
 }
 
+// 软件MMU模拟函数，返回va对应的最低级页表（第一级页表）的PTE的物理实际地址，方便内核对最终va映射的pa进行操作
 // Return the address of the PTE in page table pagetable
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page-table pages.
@@ -111,6 +113,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
   return pa;
 }
 
+//va : virtual address; pa : physical address
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
@@ -141,6 +144,7 @@ kvmpa(uint64 va)
   return pa+off;
 }
 
+// 创建虚拟地址和物理地址模块映射的PTEs
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
 // be page-aligned. Returns 0 on success, -1 if walk() couldn't
@@ -439,4 +443,58 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+/*
+实现进程的pagetable的打印(一直打印到最后一级页表)
+格式如下:
+..<根页表PTE号>: pte <pte地址> pa <页表本行pte映射到的物理地址>
+.. ..<二级页表PTE号>: pte <pte地址> pa <页表本行pte映射到的物理地址>
+.. .. ..<三级页表PTE号>: pte <pte地址> pa <页表本行pte映射到的物理地址>
+..<根页表PTE号>: pte <pte地址> pa <页表本行pte映射到的物理地址>
+.. ..<二级页表PTE号>: pte <pte地址> pa <页表本行pte映射到的物理地址>
+.. .. ..<三级页表PTE号>: pte <pte地址> pa <页表本行pte映射到的物理地址>
+等等等等
+
+@param pgtbl 待打印的pagetable的地址 .
+@param level 待打印的pagetable的层级(0代表根页表, 1代表二级页表, 2代表三级页表)
+*/
+void in_vmprint(pagetable_t pgtbl,int level){
+  // there are 2^9 = 512 PTEs in a page table.(三级页表设计)
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pgtbl[i];
+    
+    // 对非最后一级页表的有效页进行后续操作(非最后一级页表的RWX标志位一般设置为0)
+    if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0){  
+
+      // 取得PTE中存储的物理地址(本质是下一级页表的物理号PPN,这个PPN拼上VA中的offset才能得到物理地址PA)
+      uint64 child = PTE2PA(pte);
+
+      // 打印能直观显示出pagetable层级的前缀("..")
+      for(int j = 0; j <= level; j++){
+        printf("..");
+        if(j + 1 <= level)
+          printf(" ");
+      }
+
+      // 二级页表
+      pagetable_t childPgtbl = (pagetable_t)child;
+      printf("%d: pte %p pa %p\n",i, pte, childPgtbl);
+
+      // 递归继续向下一级打印
+      in_vmprint(childPgtbl, level + 1);
+
+    // 最后一级页表的RWX标志位由操作系统指定，一般不会都为0
+    } else if(pte & PTE_V){                   
+      // 拿到最后一级页表（三级页表）的物理地址
+      uint64 finalPtbl = PTE2PA(pte);         
+      printf(".. .. ..%d: pte %p pa %p\n",i, pte, (pagetable_t)finalPtbl);
+    } 
+  }
+}
+
+void vmprint(pagetable_t pgtbl){
+  //打印进程的根页表(root pagetable)地址(satp register中存的)
+  printf("page table %p\n",pgtbl);  //%p -> pointer 地址
+  in_vmprint(pgtbl,0);
 }

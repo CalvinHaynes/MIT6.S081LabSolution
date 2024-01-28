@@ -64,6 +64,7 @@ mycpu(void) {
 }
 
 // Return the current struct proc *, or zero if none.
+// 返回当前进程的结构体指针(struct proc*)
 struct proc*
 myproc(void) {
   push_off();
@@ -233,6 +234,7 @@ userinit(void)
   release(&p->lock);
 }
 
+// Sbrk System Call在XV6中的实际实现API
 // Grow or shrink user memory by n bytes.
 // Return 0 on success, -1 on failure.
 int
