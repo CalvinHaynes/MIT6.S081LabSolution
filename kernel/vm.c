@@ -16,36 +16,58 @@ extern char etext[];  // kernel.ld sets this to end of kernel code.
 extern char trampoline[]; // trampoline.S
 
 /*
+ * 内核页表VA->PA固定映射的helper method(具体参考XV6-book的内核地址空间映射图)
+ */
+void
+kvmpgtblmap(pagetable_t pgtbl)
+{
+  // 利用kvmmap完成固定的内核VA->PA的direct-map映射
+  // uart registers
+  kvmmap(pgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+
+  // virtio mmio disk interface
+  kvmmap(pgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+
+  // CLINT
+  kvmmap(pgtbl, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+
+  // PLIC
+  kvmmap(pgtbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+
+  // map kernel text executable and read-only.
+  kvmmap(pgtbl, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+
+  // map kernel data and the physical RAM we'll make use of.
+  kvmmap(pgtbl, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+
+  // map the trampoline for trap entry/exit to
+  // the highest virtual address in the kernel.
+  kvmmap(pgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+}
+
+/*
+ * 为每个用户进程初始化一个独有的进程私有的kernel pagetable
+ */
+pagetable_t
+kvminitperproc()
+{
+  pagetable_t kpgtbl = (pagetable_t) kalloc();//为第一级页表分配内存
+  memset(kernel_pagetable, 0, PGSIZE);        //初始化第一级页表为0
+
+  kvmpgtblmap(kpgtbl);
+
+  return kpgtbl;
+}
+
+/*
  * create a direct-map page table for the kernel.
+ * 全局内核页表初始化, kernel boot启动的时候执行
+ * 在无用户进程的时候还是需要有一个全局kernel pagetable的
  */
 void
 kvminit()
 {
-  kernel_pagetable = (pagetable_t) kalloc();  //为第一级页表分配内存
-  memset(kernel_pagetable, 0, PGSIZE);        //初始化第一级页表为0
-
-  //利用kvmmap函数将每一个IO设备映射到内核虚拟地址空间(虚拟地址和物理地址完全相同的一一对应)，对应着xv6内核虚拟地址和物理地址映射的图
-  // uart registers
-  kvmmap(UART0, UART0, PGSIZE, PTE_R | PTE_W);
-
-  // virtio mmio disk interface
-  kvmmap(VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
-
-  // CLINT
-  kvmmap(CLINT, CLINT, 0x10000, PTE_R | PTE_W);
-
-  // PLIC
-  kvmmap(PLIC, PLIC, 0x400000, PTE_R | PTE_W);
-
-  // map kernel text executable and read-only.
-  kvmmap(KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
-
-  // map kernel data and the physical RAM we'll make use of.
-  kvmmap((uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
-
-  // map the trampoline for trap entry/exit to
-  // the highest virtual address in the kernel.
-  kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  kernel_pagetable = kvminitperproc();
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -69,7 +91,7 @@ kvminithart()
 //   30..38 -- 9 bits of level-2 index.
 //   21..29 -- 9 bits of level-1 index.
 //   12..20 -- 9 bits of level-0 index.
-//    0..11 -- 12 bits of byte offset within the page.
+//   0..11 -- 12 bits of byte offset within the page.
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
@@ -113,14 +135,14 @@ walkaddr(pagetable_t pagetable, uint64 va)
   return pa;
 }
 
-//va : virtual address; pa : physical address
+// va : virtual address; pa : physical address
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
 void
-kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
+kvmmap(pagetable_t pgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 {
-  if(mappages(kernel_pagetable, va, sz, pa, perm) != 0)
+  if(mappages(pgtbl, va, sz, pa, perm) != 0)
     panic("kvmmap");
 }
 
@@ -129,13 +151,13 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
 // addresses on the stack.
 // assumes va is page aligned.
 uint64
-kvmpa(uint64 va)
+kvmpa(pagetable_t pgtbl, uint64 va)
 {
   uint64 off = va % PGSIZE;
   pte_t *pte;
   uint64 pa;
   
-  pte = walk(kernel_pagetable, va, 0);
+  pte = walk(pgtbl, va, 0);
   if(pte == 0)
     panic("kvmpa");
   if((*pte & PTE_V) == 0)

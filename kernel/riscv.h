@@ -320,11 +320,13 @@ sfence_vma()
 }
 
 
-#define PGSIZE 4096 // bytes per page，每页4096bytes
+#define PGSIZE 4096 // bytes per page，每页大小 -> 4096bytes
 #define PGSHIFT 12  // bits of offset within a page，12位偏移地址就对应着4096bytes
 
-#define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))  //对齐每页的4096bytes，，把大于4096的sz/小于4096的sz强制置为4096/4096的倍数
-#define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))            //把虚拟地址的后12位干掉（清零），就是把虚拟地址中的offset干掉，只留下用于寻址PTE的前**位
+// 对齐每页的4096bytes，把大于4096的sz/小于4096的sz强制置为4096/4096的倍数
+#define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))  
+// 把虚拟地址的后12位干掉（清零），就是把虚拟地址中的offset干掉，只留下用于寻址PTE的前**位
+#define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))            
 
 // 以下是PTE(page table entries)中的各种flag
 #define PTE_V (1L << 0) //有效 Valid
@@ -333,12 +335,14 @@ sfence_vma()
 #define PTE_X (1L << 3) //可运行 eXecute
 #define PTE_U (1L << 4) //用户模式可访问 User mode accessible
 
-// shift a physical address to the right place for a PTE.
+// shift a physical address to the right place for a PTE. 将物理地址转化为页表项PTE
+// pa >> 12 -> 去掉12位offset的PA就是前44位的PPN号 -> 再<<10 -> 为了给PTE的后10位的Flags腾出空间
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
 
 // 将页表中PTE转Physical Address
 #define PTE2PA(pte) (((pte) >> 10) << 12)   
 
+// 取出PTE的Falgs(后10位)
 #define PTE_FLAGS(pte) ((pte) & 0x3FF)
 
 // extract the three 9-bit page table indices from a virtual address.
@@ -352,6 +356,7 @@ sfence_vma()
 // that have the high bit set.
 #define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
 
+// PTE的虚拟地址(64位)
 typedef uint64 pte_t;
-// pagetable_t 可以被视为指向页表的首个页表项PTE的指针(64位地址, 一个页表 = 512 PTEs)
+// pagetable_t可以被视为指向页表的首个页表项PTE的指针(64位地址, 一个页表 = 512 PTEs)
 typedef uint64 *pagetable_t; 
